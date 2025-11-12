@@ -12,7 +12,9 @@ def load_and_transform_json(json_path, source_name):
     Membaca file JSON, mengubah struktur (dari dict ke list),
     dan menambahkannya ke DataFrame.
     """
-    file_path = Path(json_path)
+    # Kita tetap menggunakan Path() untuk pemeriksaan .exists() yang
+    # berfungsi baik dengan string path lengkap
+    file_path = Path(json_path) 
     if not file_path.exists():
         # Jika file tidak ada, tampilkan peringatan dan kembalikan DataFrame kosong
         st.warning(f"File tidak ditemukan: {json_path}")
@@ -36,29 +38,35 @@ def main():
     st.title("📊 Dashboard Hasil Web Scraping Kementerian/Lembaga")
     
     # --- KONFIGURASI DATA ---
+    # <-- DIUBAH: Path lengkap dimasukkan langsung di sini.
+    # Gunakan r"..." (raw string) untuk menangani backslash '\' di Windows.
     DATA_SOURCES = {
-        "BKN": "scraped_bkn.json",
-        "Kemdiktisaintek": "scraped_kemdiktisaintek.json",
-        "Kemendikdasmen": "scraped_kemendikdasmen.json",
-        "Kemenkeu": "scraped_kemenkeu.json",
-        "Kemenkop": "scraped_kemenkop.json",
-        "Kemhan": "scraped_kemhan.json",
-        "Kemnaker": "scraped_kemnaker.json",
-        "Komdigi": "scraped_komdigi.json"
+        "BKN": r"scraped_bkn.json",
+        "Kemdiktisaintek": r"scraped_kemdiktisaintek.json",
+        "Kemendikdasmen": r"scraped_kemendikdasmen.json",
+        "Kemenkeu": r"scraped_kemenkeu.json",
+        "Kemenkop": r"scraped_kemenkop.json",
+        "Kemhan": r"scraped_kemhan.json",
+        "Kemnaker": r"scraped_kemnaker.json",
+        "Komdigi": r"scraped_komdigi.json"
     }
 
-    BASE_PATH = Path(r"D:\MAXY ACADEMY\scrapper\data")
+    # <-- DIUBAH: Baris BASE_PATH dihapus
+    # BASE_PATH = Path(r"D:\MAXY ACADEMY\scrapper\data") 
 
     # --- MEMUAT DAN MENGGABUNGKAN DATA ---
     all_dfs = []
-    for source_name, filename in DATA_SOURCES.items():
-        full_path = BASE_PATH / filename
-        df = load_and_transform_json(full_path, source_name)
+    
+    # <-- DIUBAH: Loop diubah untuk menggunakan path lengkap dari dictionary
+    # 'file_path' sekarang berisi path lengkap, e.g., "D:\...\scraped_bkn.json"
+    for source_name, file_path in DATA_SOURCES.items():
+        # Langsung panggil 'file_path', tidak perlu menggabungkan dengan BASE_PATH
+        df = load_and_transform_json(file_path, source_name)
         if not df.empty:
             all_dfs.append(df)
     
     if not all_dfs:
-        st.error("Tidak ada data yang berhasil dimuat. Periksa BASE_PATH dan nama file di konfigurasi DATA_SOURCES.")
+        st.error("Tidak ada data yang berhasil dimuat. Periksa kembali path file di konfigurasi DATA_SOURCES.")
         return
 
     df_main = pd.concat(all_dfs, ignore_index=True)
