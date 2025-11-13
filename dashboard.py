@@ -24,7 +24,7 @@ def load_and_transform_json(filename, source_name):
     return pd.DataFrame(records)
 
 def main():
-    st.title("Dashboard Hasil Web Scraping Kementerian/Lembaga")
+    st.title("Dashboard Berita Kementerian/Lembaga")
     
     DATA_SOURCES = {
         "BKN": "scraped_bkn.json",
@@ -107,3 +107,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
