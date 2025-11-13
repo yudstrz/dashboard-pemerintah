@@ -41,11 +41,16 @@ st.markdown("""
             color: #666;
             font-size: 0.9rem;
         }
-        .dataframe {
-            border-radius: 10px;
+        a {
+            color: #0073e6;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
         }
     </style>
 """, unsafe_allow_html=True)
+
 
 # -----------------------------
 # Fungsi untuk memuat dan mengubah data JSON
@@ -67,6 +72,7 @@ def load_and_transform_json(json_path, source_name):
         records.append(record)
 
     return pd.DataFrame(records)
+
 
 # -----------------------------
 # Main Function
@@ -167,22 +173,39 @@ def main():
     st.download_button("Unduh Data (CSV)", data=csv_download, file_name="berita_filtered.csv", mime="text/csv")
 
     # -----------------------------
-    # Tabel Artikel
+    # Tabel Artikel (dengan URL bisa diklik)
     # -----------------------------
     st.markdown("### Data Artikel")
 
     if df_filtered.empty:
         st.warning("Tidak ada artikel yang cocok dengan filter.")
-    else:
-        # Pilih kolom yang ingin ditampilkan
-        display_cols = ['source', 'title', 'date', 'scraped_at_dt', 'url']
-        available_cols = [c for c in display_cols if c in df_filtered.columns]
+        return
 
-        st.dataframe(
-            df_filtered[available_cols],
-            use_container_width=True,
-            hide_index=True
-        )
+    # Ubah kolom URL jadi hyperlink
+    df_display = df_filtered.copy()
+    if 'url' in df_display.columns:
+        df_display['url'] = df_display['url'].apply(lambda x: f'<a href="{x}" target="_blank">Buka Artikel</a>')
+
+    # Pilih kolom utama
+    display_cols = ['source', 'title', 'date', 'scraped_at_dt', 'url']
+    available_cols = [c for c in display_cols if c in df_display.columns]
+
+    # Tampilkan tabel dengan link aktif
+    st.markdown(df_display[available_cols].to_html(escape=False, index=False), unsafe_allow_html=True)
+
+    # -----------------------------
+    # Detail Artikel
+    # -----------------------------
+    st.markdown("### Lihat Detail Artikel")
+    title_options = df_filtered['title'].tolist()
+    selected_title = st.selectbox("Pilih artikel untuk melihat detail:", title_options)
+
+    if selected_title:
+        article = df_filtered[df_filtered['title'] == selected_title].iloc[0]
+        st.subheader(article['title'])
+        st.caption(f"Sumber: {article['source']} | Tanggal: {article.get('date', '-')}")
+        st.write(article.get('content', 'Konten tidak tersedia.'))
+        st.markdown(f"[Buka Artikel Asli]({article['url']})", unsafe_allow_html=True)
 
 
 # Jalankan aplikasi
