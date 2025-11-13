@@ -62,7 +62,7 @@ def main():
             all_dfs.append(df)
 
     if not all_dfs:
-        st.error("Tidak ada data yang berhasil dimuat. Periksa nama file JSON di folder yang sama.")
+        st.error("Tidak ada data yang berhasil dimuat. Pastikan file JSON berada di folder yang sama.")
         return
 
     df_main = pd.concat(all_dfs, ignore_index=True)
@@ -72,6 +72,14 @@ def main():
         df_main['scraped_at_dt'] = pd.to_datetime(df_main['scraped_at'], unit='s')
     else:
         df_main['scraped_at_dt'] = pd.NaT
+
+    # Buat kolom content ringkas (hanya potongan 120 karakter)
+    if 'content' in df_main.columns:
+        df_main['content_preview'] = df_main['content'].apply(
+            lambda x: (x[:120] + "...") if isinstance(x, str) and len(x) > 120 else x
+        )
+    else:
+        df_main['content_preview'] = ""
 
     # --------------------------------------------------
     # SIDEBAR: FILTER
@@ -104,14 +112,14 @@ def main():
     # TABEL ARTIKEL
     # --------------------------------------------------
     st.header("Daftar Artikel")
-    st.caption("Klik satu baris untuk melihat konten artikel di bawah tabel.")
+    st.caption("Klik satu baris untuk melihat konten lengkap di bawah tabel.")
 
-    # Pilih kolom yang ingin ditampilkan
-    display_cols = ['source', 'title', 'date', 'scraped_at_dt']
+    # Kolom untuk ditampilkan di tabel
+    display_cols = ['source', 'title', 'date', 'scraped_at_dt', 'url', 'content_preview']
     df_show = df_filtered[display_cols].copy()
     df_show.index = range(1, len(df_show) + 1)
 
-    # Gunakan dataframe interaktif (Streamlit 1.28+ mendukung row selection)
+    # DataFrame interaktif (Streamlit 1.28+)
     selected_rows = st.dataframe(
         df_show,
         use_container_width=True,
@@ -121,7 +129,7 @@ def main():
     )
 
     # --------------------------------------------------
-    # TAMPILKAN DETAIL ARTIKEL (OTOMATIS DARI ROW DIPILIH)
+    # DETAIL ARTIKEL
     # --------------------------------------------------
     selected_indices = st.session_state.get("table_select", {}).get("selection", {}).get("rows", [])
     if selected_indices:
@@ -131,11 +139,11 @@ def main():
         st.markdown("---")
         st.subheader(article_data['title'])
         st.caption(f"{article_data.get('date', 'Tanggal tidak tersedia')} | {article_data['source']}")
-        
+
         with st.expander("Lihat Konten Artikel", expanded=True):
             st.write(article_data.get('content', 'Konten tidak tersedia.'))
 
-        st.markdown(f"[Baca artikel asli]({article_data['url']})", unsafe_allow_html=True)
+        st.markdown(f"[Buka Artikel Asli]({article_data['url']})", unsafe_allow_html=True)
     else:
         st.info("Klik salah satu artikel di tabel untuk menampilkan isi beritanya di sini.")
 
