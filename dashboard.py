@@ -3,39 +3,47 @@ import pandas as pd
 import json
 from pathlib import Path
 
-# Set konfigurasi halaman (opsional, tapi membuat tampilan lebih baik)
-st.set_page_config(layout="wide", page_title="Dashboard Berita Scraper")
+# --------------------------------------------------
+# KONFIGURASI DASAR
+# --------------------------------------------------
+st.set_page_config(
+    layout="wide",
+    page_title="Dashboard Berita Scraper",
+    page_icon="📰"
+)
 
-# Fungsi untuk memuat dan mengubah data dari satu file JSON
+# --------------------------------------------------
+# FUNGSI MEMUAT DATA JSON
+# --------------------------------------------------
 def load_and_transform_json(json_path, source_name):
     """
-    Membaca file JSON, mengubah struktur (dari dict ke list),
-    dan menambahkannya ke DataFrame.
+    Membaca file JSON, ubah dari dict ke list, lalu jadi DataFrame.
     """
     file_path = Path(json_path)
     if not file_path.exists():
-        # Jika file tidak ada, tampilkan peringatan dan kembalikan DataFrame kosong
-        st.warning(f"File tidak ditemukan: {json_path}")
+        st.warning(f"⚠️ File tidak ditemukan: {json_path}")
         return pd.DataFrame()
 
     with open(file_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
     records = []
-    # Loop melalui struktur JSON (dimana URL adalah key)
     for url, details in data.items():
-        record = details.copy()  # Salin semua detail (title, date, content, dll)
-        record['url'] = url      # Tambahkan URL sebagai kolom terpisah
-        record['source'] = source_name  # Tambahkan nama sumber
+        record = details.copy()
+        record['url'] = url
+        record['source'] = source_name
         records.append(record)
-    
+
     return pd.DataFrame(records)
 
-# ---- Fungsi Utama Aplikasi ----
+# --------------------------------------------------
+# FUNGSI UTAMA
+# --------------------------------------------------
 def main():
-    st.title("📊 Dashboard Hasil Web Scraping Kementerian/Lembaga")
-    
-    # --- KONFIGURASI DATA ---
+    st.title("🗞️ Dashboard Hasil Web Scraping Kementerian/Lembaga")
+    st.markdown("Menampilkan hasil scraping berita dari berbagai sumber resmi pemerintah.")
+
+    # --- KONFIGURASI FILE SUMBER DATA ---
     DATA_SOURCES = {
         "BKN": "scraped_bkn.json",
         "Kemdiktisaintek": "scraped_kemdiktisaintek.json",
@@ -49,93 +57,103 @@ def main():
 
     BASE_PATH = Path(r"D:\MAXY ACADEMY\scrapper\data")
 
-    # --- MEMUAT DAN MENGGABUNGKAN DATA ---
+    # --- MEMUAT SEMUA FILE ---
     all_dfs = []
     for source_name, filename in DATA_SOURCES.items():
-        full_path = BASE_PATH / filename
-        df = load_and_transform_json(full_path, source_name)
+        df = load_and_transform_json(BASE_PATH / filename, source_name)
         if not df.empty:
             all_dfs.append(df)
-    
+
     if not all_dfs:
-        st.error("Tidak ada data yang berhasil dimuat. Periksa BASE_PATH dan nama file di konfigurasi DATA_SOURCES.")
+        st.error("❌ Tidak ada data yang berhasil dimuat. Periksa BASE_PATH dan nama file.")
         return
 
     df_main = pd.concat(all_dfs, ignore_index=True)
 
-    # Konversi kolom tanggal (jika ada) dan timestamp
+    # Tambahkan kolom waktu scraping (jika ada)
     if 'scraped_at' in df_main.columns:
         df_main['scraped_at_dt'] = pd.to_datetime(df_main['scraped_at'], unit='s')
-    
-    # ---- Sidebar untuk Filter ----
-    st.sidebar.header("Filter Data")
-    
-    # Filter berdasarkan Sumber Berita
+    else:
+        df_main['scraped_at_dt'] = pd.NaT
+
+    # --------------------------------------------------
+    # SIDEBAR: FILTER
+    # --------------------------------------------------
+    st.sidebar.header("🔍 Filter Data")
     sources = sorted(df_main['source'].unique())
-    selected_sources = st.sidebar.multiselect("Pilih Sumber:", sources, default=sources)
-    
-    # --- FITUR PENCARIAN BARU ---
-    search_term = st.sidebar.text_input("Cari Judul Artikel:", placeholder="Ketik kata kunci...")
+    selected_sources = st.sidebar.multiselect("Pilih sumber berita:", sources, default=sources)
 
-    # --- APLIKASIKAN FILTER ---
-    # 1. Filter berdasarkan sumber yang dipilih
+    search_term = st.sidebar.text_input("Cari judul artikel:", placeholder="Ketik kata kunci...")
+
+    # Terapkan filter
     df_filtered = df_main[df_main['source'].isin(selected_sources)].copy()
-
-    # 2. Filter berdasarkan kata kunci pencarian (jika ada)
     if search_term:
-        # .str.contains() untuk mencari substring
-        # case=False agar pencarian tidak case-sensitive (huruf besar/kecil tidak berpengaruh)
-        # na=False untuk mengabaikan nilai NaN (kosong) di kolom judul
         df_filtered = df_filtered[df_filtered['title'].str.contains(search_term, case=False, na=False)]
 
-    # ---- Tampilan Utama Dashboard ----
-    
-    # 1. Ringkasan Data
+    # --------------------------------------------------
+    # RINGKASAN
+    # --------------------------------------------------
     st.header("📈 Ringkasan Data")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Total Artikel (Setelah Filter)", f"{len(df_filtered):,}")
+    col1.metric("Total Artikel (setelah filter)", f"{len(df_filtered):,}")
     col2.metric("Jumlah Sumber Aktif", len(selected_sources))
     col3.metric("Total Sumber Tersedia", len(sources))
 
-    # Cek jika ada data setelah difilter
     if df_filtered.empty:
-        st.warning("Tidak ada artikel yang cocok dengan filter yang Anda pilih. Coba ubah sumber atau kata kunci pencarian.")
-    else:
-        # 2. Tabel Data Interaktif
-        st.header("📋 Data Artikel")
-        st.dataframe(
-            df_filtered[['source', 'title', 'date', 'scraped_at_dt']],
-            use_container_width=True,
-            hide_index=True
-        )
+        st.warning("⚠️ Tidak ada artikel yang cocok dengan filter.")
+        return
 
-        # 3. Visualisasi Jumlah Artikel per Sumber
-        st.header("📊 Distribusi Artikel per Sumber")
-        source_counts = df_filtered['source'].value_counts().reset_index()
-        source_counts.columns = ['Sumber', 'Jumlah Artikel']
-        st.bar_chart(source_counts.set_index('Sumber'))
+    # --------------------------------------------------
+    # TABEL ARTIKEL
+    # --------------------------------------------------
+    st.header("📋 Daftar Artikel")
+    st.caption("Klik satu baris untuk melihat konten artikel di bawah tabel.")
 
-        # 4. Detail Artikel (pilih dari dropdown)
-        st.header("📖 Baca Detail Artikel")
+    # Pilih kolom yang ingin ditampilkan
+    display_cols = ['source', 'title', 'date', 'scraped_at_dt']
+    df_show = df_filtered[display_cols].copy()
+    df_show.index = range(1, len(df_show) + 1)
+
+    # Gunakan dataframe interaktif (Streamlit 1.28+ mendukung row selection)
+    selected_rows = st.dataframe(
+        df_show,
+        use_container_width=True,
+        hide_index=False,
+        selection_mode="single-row",
+        key="table_select"
+    )
+
+    # --------------------------------------------------
+    # TAMPILKAN DETAIL ARTIKEL (OTOMATIS DARI ROW DIPILIH)
+    # --------------------------------------------------
+    # Dapatkan indeks baris yang dipilih
+    selected_indices = st.session_state.get("table_select", {}).get("selection", {}).get("rows", [])
+    if selected_indices:
+        selected_idx = selected_indices[0]
+        article_data = df_filtered.iloc[selected_idx]
+
+        st.markdown("---")
+        st.subheader(article_data['title'])
+        st.caption(f"🕓 {article_data.get('date', 'Tanggal tidak tersedia')} | 🏛️ {article_data['source']}")
         
-        # Buat daftar judul untuk dipilih dari data yang sudah difilter
-        title_options = df_filtered['title'].tolist()
-        selected_title = st.selectbox("Pilih judul artikel untuk dibaca:", title_options)
+        with st.expander("📖 Lihat Konten Artikel", expanded=True):
+            st.write(article_data.get('content', 'Konten tidak tersedia.'))
 
-        if selected_title:
-            # Dapatkan semua data untuk artikel yang dipilih
-            article_data = df_filtered[df_filtered['title'] == selected_title].iloc[0]
-            
-            st.subheader(article_data['title'])
-            st.caption(f"Sumber: {article_data['source']} | Tanggal: {article_data.get('date', 'Tidak tersedia')}")
-            
-            # Gunakan st.expander agar konten tidak memakan banyak tempat
-            with st.expander("Klik untuk membaca konten artikel"):
-                st.write(article_data.get('content', 'Konten tidak tersedia.'))
-            
-            st.markdown(f"[🔗 Link ke Artikel Asli]({article_data['url']})", unsafe_allow_html=True)
+        st.markdown(f"[🔗 Baca artikel asli]({article_data['url']})", unsafe_allow_html=True)
+    else:
+        st.info("👆 Klik salah satu artikel di tabel untuk menampilkan isi beritanya di sini.")
+
+    # --------------------------------------------------
+    # CHART DISTRIBUSI ARTIKEL
+    # --------------------------------------------------
+    st.header("📊 Distribusi Artikel per Sumber")
+    source_counts = df_filtered['source'].value_counts().reset_index()
+    source_counts.columns = ['Sumber', 'Jumlah Artikel']
+    st.bar_chart(source_counts.set_index('Sumber'))
 
 
-# Menjalankan aplikasi
+# --------------------------------------------------
+# MAIN ENTRY
+# --------------------------------------------------
 if __name__ == "__main__":
     main()
