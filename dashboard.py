@@ -51,39 +51,48 @@ def main():
 
     if 'scraped_at' in df_main.columns:
         df_main['scraped_at_dt'] = pd.to_datetime(df_main['scraped_at'], unit='s', errors='coerce')
-    
-    st.sidebar.header("Filter Data")
-    
+
+    # ======== RINGKASAN DATA ========
+    st.header("Ringkasan Data")
     sources = sorted(df_main['source'].unique())
-    selected_sources = st.sidebar.multiselect("Pilih Sumber:", sources, default=sources)
-    search_term = st.sidebar.text_input("Cari Judul Artikel:", placeholder="Ketik kata kunci...")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Artikel", f"{len(df_main):,}")
+    col2.metric("Jumlah Sumber Aktif", len(sources))
+    col3.metric("Total Sumber Tersedia", len(sources))
+
+    # ======== FILTER DATA (bukan di sidebar) ========
+    st.markdown("---")
+    st.subheader("Filter Data")
+
+    fcol1, fcol2 = st.columns([2, 3])
+    with fcol1:
+        selected_sources = st.multiselect("Pilih Sumber:", sources, default=sources)
+    with fcol2:
+        search_term = st.text_input("Cari Judul Artikel:", placeholder="Ketik kata kunci...")
 
     df_filtered = df_main[df_main['source'].isin(selected_sources)].copy()
     if search_term:
         df_filtered = df_filtered[df_filtered['title'].str.contains(search_term, case=False, na=False)]
 
-    st.header("Ringkasan Data")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Artikel", f"{len(df_filtered):,}")
-    col2.metric("Jumlah Sumber Aktif", len(selected_sources))
-    col3.metric("Total Sumber Tersedia", len(sources))
-
+    # ======== TABEL ARTIKEL ========
+    st.header("Data Artikel")
     if df_filtered.empty:
         st.warning("Tidak ada artikel yang cocok dengan filter yang dipilih.")
         return
 
-    st.header("Data Artikel")
     st.dataframe(
         df_filtered[['source', 'title', 'date', 'scraped_at_dt']],
         use_container_width=True,
         hide_index=True
     )
 
+    # ======== DISTRIBUSI ARTIKEL ========
     st.header("Distribusi Artikel per Sumber")
     source_counts = df_filtered['source'].value_counts().reset_index()
     source_counts.columns = ['Sumber', 'Jumlah Artikel']
     st.bar_chart(source_counts.set_index('Sumber'))
 
+    # ======== BACA DETAIL ARTIKEL ========
     st.header("Baca Detail Artikel")
     title_options = df_filtered['title'].tolist()
     selected_title = st.selectbox("Pilih judul artikel:", title_options)
