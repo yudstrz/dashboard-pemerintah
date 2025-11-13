@@ -13,37 +13,39 @@ st.set_page_config(
 )
 
 # -----------------------------
-# Gaya CSS untuk mempercantik UI
+# Gaya CSS untuk mempercantik tampilan
 # -----------------------------
 st.markdown("""
     <style>
-        body { background-color: #f9f9f9; }
-        .main-title { font-size: 2rem; font-weight: 700; margin-bottom: 0.5em; color: #1c1c1e; }
-        .subheader { color: #555; margin-bottom: 1em; }
-        .article-card {
-            background-color: white;
-            border-radius: 12px;
-            padding: 1em 1.5em;
-            margin-bottom: 1em;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        .main-title { 
+            font-size: 2rem; 
+            font-weight: 700; 
+            margin-bottom: 0.3em; 
+            color: #1c1c1e; 
         }
-        .article-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 0.2em;
+        .subheader { 
+            color: #555; 
+            margin-bottom: 1.5em; 
         }
-        .article-meta {
+        .metric-container {
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 0.8em 1em;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        .metric-label {
+            color: #666;
             font-size: 0.9rem;
-            color: #777;
-            margin-bottom: 0.5em;
         }
-        .search-bar input {
-            border-radius: 8px;
-            border: 1px solid #ccc;
+        .dataframe {
+            border-radius: 10px;
         }
     </style>
 """, unsafe_allow_html=True)
-
 
 # -----------------------------
 # Fungsi untuk memuat dan mengubah data JSON
@@ -66,7 +68,6 @@ def load_and_transform_json(json_path, source_name):
 
     return pd.DataFrame(records)
 
-
 # -----------------------------
 # Main Function
 # -----------------------------
@@ -74,7 +75,7 @@ def main():
     st.markdown('<div class="main-title">Dashboard Hasil Scraper Berita</div>', unsafe_allow_html=True)
     st.markdown('<div class="subheader">Menampilkan hasil pengambilan berita dari berbagai sumber kementerian/lembaga.</div>', unsafe_allow_html=True)
 
-    # Konfigurasi sumber data
+    # --- Konfigurasi sumber data ---
     DATA_SOURCES = {
         "BKN": r"scraped_bkn.json",
         "Kemdiktisaintek": r"scraped_kemdiktisaintek.json",
@@ -86,6 +87,7 @@ def main():
         "Komdigi": r"scraped_komdigi.json"
     }
 
+    # --- Muat semua data ---
     all_dfs = []
     for source_name, file_path in DATA_SOURCES.items():
         df = load_and_transform_json(file_path, source_name)
@@ -98,6 +100,7 @@ def main():
 
     df_main = pd.concat(all_dfs, ignore_index=True)
 
+    # Konversi kolom scraped_at (jika ada)
     if 'scraped_at' in df_main.columns:
         df_main['scraped_at_dt'] = pd.to_datetime(df_main['scraped_at'], unit='s')
     else:
@@ -143,38 +146,43 @@ def main():
         df_filtered = df_filtered.sort_values(by='scraped_at_dt', ascending=True)
 
     # -----------------------------
-    # Ringkasan
+    # Ringkasan Data
     # -----------------------------
     st.markdown("### Ringkasan Data")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Total Artikel", f"{len(df_filtered):,}")
-    col2.metric("Jumlah Sumber", len(selected_sources))
-    col3.metric("Rentang Waktu", f"{date_range[0]} - {date_range[1]}" if date_range else "Tidak tersedia")
+    with col1:
+        st.markdown(f"<div class='metric-container'><div class='metric-value'>{len(df_filtered):,}</div><div class='metric-label'>Total Artikel</div></div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"<div class='metric-container'><div class='metric-value'>{len(selected_sources)}</div><div class='metric-label'>Jumlah Sumber Dipilih</div></div>", unsafe_allow_html=True)
+    with col3:
+        if date_range:
+            st.markdown(f"<div class='metric-container'><div class='metric-value'>{date_range[0]} - {date_range[1]}</div><div class='metric-label'>Rentang Tanggal</div></div>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"<div class='metric-container'><div class='metric-value'>-</div><div class='metric-label'>Rentang Tanggal</div></div>", unsafe_allow_html=True)
 
-    # Tombol unduh
+    # -----------------------------
+    # Tombol Unduh
+    # -----------------------------
     csv_download = df_filtered.to_csv(index=False).encode('utf-8')
     st.download_button("Unduh Data (CSV)", data=csv_download, file_name="berita_filtered.csv", mime="text/csv")
 
     # -----------------------------
-    # Tampilan Artikel
+    # Tabel Artikel
     # -----------------------------
+    st.markdown("### Data Artikel")
+
     if df_filtered.empty:
         st.warning("Tidak ada artikel yang cocok dengan filter.")
     else:
-        st.markdown("### Daftar Artikel")
-        for _, row in df_filtered.iterrows():
-            with st.container():
-                st.markdown(f"""
-                <div class="article-card">
-                    <div class="article-title">{row['title']}</div>
-                    <div class="article-meta">
-                        {row['source']} | {row.get('date', 'Tanggal tidak tersedia')} | 
-                        {row.get('scraped_at_dt', '')}
-                    </div>
-                    <div>{row.get('content', '')[:250]}...</div>
-                    <a href="{row['url']}" target="_blank">Baca Selengkapnya</a>
-                </div>
-                """, unsafe_allow_html=True)
+        # Pilih kolom yang ingin ditampilkan
+        display_cols = ['source', 'title', 'date', 'scraped_at_dt', 'url']
+        available_cols = [c for c in display_cols if c in df_filtered.columns]
+
+        st.dataframe(
+            df_filtered[available_cols],
+            use_container_width=True,
+            hide_index=True
+        )
 
 
 # Jalankan aplikasi
